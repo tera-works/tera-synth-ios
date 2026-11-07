@@ -1,0 +1,33 @@
+{
+  "name": "HSynth",
+  "apps": [
+    {
+      "name": "HSynth",
+      "bundleIdentifier": "com.hsynth.ios",
+      "developerName": "tera-works",
+      "localizedDescription": "ハイブリッドシンセサイザー。VA・FM・ウェーブテーブル・サンプルの 4 種類の音源、エフェクト、アルペジエーター / ステップシーケンサー、MIDI ファイルプレイヤー（バックグラウンド再生対応）。自分のサンプルや MIDI ファイルは「ファイル」アプリや Finder から HSynth のフォルダへ追加します。",
+      "appPermissions": {
+        "entitlements": [],
+        "privacy": {
+          "NSMicrophoneUsageDescription": "The microphone feeds the vocoder and the looper."
+        }
+      },
+      "iconURL": "https://github.com/tera-works/tera-synth-ios/releases/download/v0.3.0/icon.png",
+      "versions": [
+        {
+          "version": "0.3.0",
+          "buildVersion": "1",
+          "minOSVersion": "16.0",
+          "size": 4109968,
+          "downloadURL": "https://github.com/tera-works/tera-synth-ios/releases/download/v0.3.0/app.ipa",
+          "date": "2026-11-07T04:30:58Z",
+          "localizedDescription": "最初の版。シンセ（Play / Edit）、ライブラリ、MIDI ファイルプレイヤー（バックグラウンド再生、曲の途中の音色切り替え、ピッチベンド幅に対応）。"
+        }
+      ]
+    }
+  ],
+  "news": [],
+  "identifier": "io.github.tera-works.tera-synth-ios",
+  "sourceURL": "https://tera-works.github.io/tera-synth-ios/source.json",
+  "iconURL": "https://github.com/tera-works/tera-synth-ios/releases/download/v0.3.0/icon.png"
+}

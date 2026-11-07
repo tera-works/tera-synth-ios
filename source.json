@@ -12,8 +12,17 @@
           "NSMicrophoneUsageDescription": "The microphone feeds the vocoder and the looper."
         }
       },
-      "iconURL": "https://github.com/tera-works/tera-synth-ios/releases/download/v0.5.0/icon.png",
+      "iconURL": "https://github.com/tera-works/tera-synth-ios/releases/download/v0.7.0/icon.png",
       "versions": [
+        {
+          "version": "0.7.0",
+          "buildVersion": "6",
+          "minOSVersion": "16.0",
+          "size": 4458678,
+          "downloadURL": "https://github.com/tera-works/tera-synth-ios/releases/download/v0.7.0/app.ipa",
+          "date": "2026-11-07T10:20:56Z",
+          "localizedDescription": "Live 画面（セットリスト）、フレーズレコーダー（ループ録音・重ね録り・クオンタイズ・MIDI 書き出し）、デュアルフィルター、グラニュラー、Super Knob・スケールロック・コードモード、サンプリング（Sample 画面）を追加。"
+        },
         {
           "version": "0.5.0",
           "buildVersion": "4",
@@ -56,5 +65,5 @@
   "news": [],
   "identifier": "io.github.tera-works.tera-synth-ios",
   "sourceURL": "https://tera-works.github.io/tera-synth-ios/source.json",
-  "iconURL": "https://github.com/tera-works/tera-synth-ios/releases/download/v0.5.0/icon.png"
+  "iconURL": "https://github.com/tera-works/tera-synth-ios/releases/download/v0.7.0/icon.png"
 }

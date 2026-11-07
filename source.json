@@ -12,8 +12,17 @@
           "NSMicrophoneUsageDescription": "The microphone feeds the vocoder and the looper."
         }
       },
-      "iconURL": "https://github.com/tera-works/tera-synth-ios/releases/download/v0.3.1/icon.png",
+      "iconURL": "https://github.com/tera-works/tera-synth-ios/releases/download/v0.4.0/icon.png",
       "versions": [
+        {
+          "version": "0.4.0",
+          "buildVersion": "3",
+          "minOSVersion": "16.0",
+          "size": 4212905,
+          "downloadURL": "https://github.com/tera-works/tera-synth-ios/releases/download/v0.4.0/app.ipa",
+          "date": "2026-11-07T08:23:16Z",
+          "localizedDescription": "Multi（16 パート）、System 画面（録音、同時発音数と品質、MIDI 入出力）、Edit の Undo / Redo / Compare、エンベロープとフィルターのグラフ、サンプルの読み込み、MIDI Learn を追加。FLAC の音源をそのまま少しずつ読むようにし、曲の途中の音色切り替えでは鳴っている音を前の音色のまま残すようにしました。"
+        },
         {
           "version": "0.3.1",
           "buildVersion": "2",
@@ -38,5 +47,5 @@
   "news": [],
   "identifier": "io.github.tera-works.tera-synth-ios",
   "sourceURL": "https://tera-works.github.io/tera-synth-ios/source.json",
-  "iconURL": "https://github.com/tera-works/tera-synth-ios/releases/download/v0.3.1/icon.png"
+  "iconURL": "https://github.com/tera-works/tera-synth-ios/releases/download/v0.4.0/icon.png"
 }

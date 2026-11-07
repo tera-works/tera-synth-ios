@@ -12,8 +12,17 @@
           "NSMicrophoneUsageDescription": "The microphone feeds the vocoder and the looper."
         }
       },
-      "iconURL": "https://github.com/tera-works/tera-synth-ios/releases/download/v0.4.0/icon.png",
+      "iconURL": "https://github.com/tera-works/tera-synth-ios/releases/download/v0.5.0/icon.png",
       "versions": [
+        {
+          "version": "0.5.0",
+          "buildVersion": "4",
+          "minOSVersion": "16.0",
+          "size": 4327148,
+          "downloadURL": "https://github.com/tera-works/tera-synth-ios/releases/download/v0.5.0/app.ipa",
+          "date": "2026-11-07T09:15:57Z",
+          "localizedDescription": "Player: チャンネルごとの音量（曲をまたいで保持）、プレイリストの作成・並べ替え。Multi: 8 シーン。Edit: ステップシーケンサーと MSEG のグラフィック編集、LFO の波形、FM アルゴリズムの図、モジュレーションの一覧。Play: アルペジエーターとテンポのパネル。録音は長さの上限なし。"
+        },
         {
           "version": "0.4.0",
           "buildVersion": "3",
@@ -47,5 +56,5 @@
   "news": [],
   "identifier": "io.github.tera-works.tera-synth-ios",
   "sourceURL": "https://tera-works.github.io/tera-synth-ios/source.json",
-  "iconURL": "https://github.com/tera-works/tera-synth-ios/releases/download/v0.4.0/icon.png"
+  "iconURL": "https://github.com/tera-works/tera-synth-ios/releases/download/v0.5.0/icon.png"
 }

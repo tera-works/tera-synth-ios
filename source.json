@@ -9,11 +9,22 @@
       "appPermissions": {
         "entitlements": [],
         "privacy": {
+          "NSBluetoothAlwaysUsageDescription": "Bluetooth MIDI connects keyboards and controllers, and lets a computer play and control HSynth.",
+          "NSLocalNetworkUsageDescription": "Network MIDI lets a computer play and control HSynth over Wi-Fi.",
           "NSMicrophoneUsageDescription": "The microphone feeds the vocoder and the looper."
         }
       },
-      "iconURL": "https://github.com/tera-works/tera-synth-ios/releases/download/v0.7.0/icon.png",
+      "iconURL": "https://github.com/tera-works/tera-synth-ios/releases/download/v0.8.0/icon.png",
       "versions": [
+        {
+          "version": "0.8.0",
+          "buildVersion": "7",
+          "minOSVersion": "16.0",
+          "size": 4548075,
+          "downloadURL": "https://github.com/tera-works/tera-synth-ios/releases/download/v0.8.0/app.ipa",
+          "date": "2026-11-09T01:11:50Z",
+          "localizedDescription": "HSynth 0.8.0"
+        },
         {
           "version": "0.7.0",
           "buildVersion": "6",
@@ -65,5 +76,5 @@
   "news": [],
   "identifier": "io.github.tera-works.tera-synth-ios",
   "sourceURL": "https://tera-works.github.io/tera-synth-ios/source.json",
-  "iconURL": "https://github.com/tera-works/tera-synth-ios/releases/download/v0.7.0/icon.png"
+  "iconURL": "https://github.com/tera-works/tera-synth-ios/releases/download/v0.8.0/icon.png"
 }

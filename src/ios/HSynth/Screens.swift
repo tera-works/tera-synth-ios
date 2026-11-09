@@ -375,7 +375,6 @@ struct SystemScreen: View {
     @State private var recSeconds = -1.0
     @State private var lastRecording = ""
     @State private var bleSheet: BluetoothMidiSheet.Mode?
-    @State private var bleList = false
     private let timer = Timer.publish(every: 0.5, on: .main, in: .common).autoconnect()
 
     var body: some View {
@@ -452,7 +451,7 @@ struct SystemScreen: View {
                         }
                     }
                     HStack {
-                        HwButton(title: "Bluetooth MIDI") { bleList = true }
+                        HwButton(title: "Bluetooth MIDI") { bleSheet = .central }
                         HwButton(title: "Advertise") { bleSheet = .peripheral }
                         HwButton(title: "MIDI 2.0", lit: e.umpInput) {
                             e.umpInput = !e.umpInput
@@ -468,16 +467,6 @@ struct SystemScreen: View {
                 }
             }
             .padding(8)
-        }
-        .sheet(isPresented: $bleList) {
-            BleMidiView(ble: model.ble, systemScreen: {
-                bleList = false
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { bleSheet = .central }
-            }, done: {
-                bleList = false
-                model.engine.refreshMidi()
-                tick += 1
-            })
         }
         .sheet(isPresented: Binding(get: { bleSheet != nil }, set: { if !$0 { bleSheet = nil } })) {
             if let m = bleSheet {

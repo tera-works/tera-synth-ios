@@ -412,6 +412,7 @@ float toNormalized(const ParamInfo& p, float v) {
     return a;
 }
 - (void)refreshMidi { _midi->openAll(); }
+- (BOOL)pollMidi { return _midi->rescanIfChanged(); }
 - (NSString*)midiStatus {
     const std::string last = _midi->lastMessage();
     return ns(_midi->status() + (last.empty() ? "" : ", last " + last));

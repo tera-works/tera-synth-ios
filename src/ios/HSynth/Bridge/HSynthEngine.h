@@ -82,6 +82,8 @@ NS_ASSUME_NONNULL_BEGIN
 @property(nonatomic, readonly) float cpuLoad;
 @property(nonatomic, readonly) NSArray<NSString*>* midiInputs;
 - (void)refreshMidi;
+/// Reopens the MIDI inputs when the system's sources changed (call every second or two).
+- (BOOL)pollMidi;
 /// MIDI input state for the user: port, sources, messages received, the last message.
 @property(nonatomic, readonly) NSString* midiStatus;
 /// Receive with the MIDI 2.0 protocol (UMP) instead of MIDI 1.0 (remembered).

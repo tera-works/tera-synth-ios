@@ -37,6 +37,9 @@ public:
     bool umpInput() const { return umpInput_; }
     // One line for the user: port state, sources, messages received ("" on Windows).
     std::string status() const;
+    // Reopens the inputs when the system's sources changed (a device plugged in while the
+    // change notification was missed). Call it every second or two; true if it reopened.
+    bool rescanIfChanged();
 
     // System Exclusive messages (complete F0..F7, driver thread) with the name of the
     // output port that reaches the sender ("" = unknown, kVirtualPort = our virtual

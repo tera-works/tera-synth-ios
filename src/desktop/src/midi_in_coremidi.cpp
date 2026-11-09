@@ -108,6 +108,7 @@ struct MidiIn::Impl {
     std::vector<std::unique_ptr<Source>> sources;
     // disconnected sources stay allocated: CoreMIDI may still be delivering to them
     std::vector<std::unique_ptr<Source>> retired;
+    std::vector<MIDIEndpointRef> seen;  // the sources at the last openAll (rescanIfChanged)
     MIDIEndpointRef virtualDest = 0, virtualSrc = 0;
     std::unique_ptr<Source> virtualIn;  // what arrives at the virtual destination
     uint8_t running = 0;  // running status
@@ -235,10 +236,12 @@ std::vector<std::string> MidiIn::openAll() {
         }
     }
     std::vector<std::string> names;
+    impl_->seen.clear();
     const ItemCount n = MIDIGetNumberOfSources();
     for (ItemCount i = 0; i < n; ++i) {
         MIDIEndpointRef src = MIDIGetSource(i);
         if (!src || src == impl_->virtualSrc) continue;  // not our own output
+        impl_->seen.push_back(src);
         auto s = std::make_unique<Source>();
         s->self = this;
         s->endpoint = src;
@@ -277,6 +280,18 @@ void MidiIn::setMpe(bool on) {
 void MidiIn::setMultiTimbral(bool on) {
     std::lock_guard<std::mutex> lock(mutex_);
     translator_.setMultiTimbral(on);
+}
+
+bool MidiIn::rescanIfChanged() {
+    if (!impl_->client || !impl_->port) return false;
+    // the sources there are now (without our own) against the connected ones
+    std::vector<MIDIEndpointRef> now;
+    const ItemCount n = MIDIGetNumberOfSources();
+    for (ItemCount i = 0; i < n; ++i)
+        if (MIDIEndpointRef src = MIDIGetSource(i); src && src != impl_->virtualSrc) now.push_back(src);
+    if (now == impl_->seen) return false;
+    openAll();
+    return true;
 }
 
 void MidiIn::setUmpInput(bool on) {

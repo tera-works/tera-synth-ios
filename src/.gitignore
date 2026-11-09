@@ -1,0 +1,4 @@
+ios/HSynth.xcodeproj/
+dist/
+.ios-build/
+__pycache__/

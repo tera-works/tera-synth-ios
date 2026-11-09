@@ -1,0 +1,7 @@
+// Synth Drum Kit (self-made, CC0)
+<group> loop_mode=one_shot amp_veltrack=80
+<region> sample=kick.wav key=36
+<region> sample=snare.wav key=38
+<region> sample=snare.wav key=40 tune=150
+<region> sample=hat.wav key=42 group=1
+<region> sample=hat.wav key=46 tune=-200 volume=-3 group=2 off_by=1

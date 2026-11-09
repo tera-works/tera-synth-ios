@@ -1,0 +1,30 @@
+# Unsigned IPA for AltStore, built from the snapshot in src/ that mirror_build.py pushes
+# with each release tag; publish_public.py (in the development repository) publishes it.
+name: iOS distribution
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: ios-distribution-${{ github.repository }}
+  cancel-in-progress: false
+jobs:
+  build:
+    runs-on: macos-15
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: XcodeGen
+        run: brew install xcodegen && cd src/ios && xcodegen
+      - run: python3 ios-distribution/scripts/distribute.py build
+        working-directory: src
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ios-package
+          path: src/dist/*
+          if-no-files-found: error
+          retention-days: 30

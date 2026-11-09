@@ -1,0 +1,11 @@
+{
+  "sourceName": "HSynth",
+  "developerName": "tera-works",
+  "description": "ハイブリッドシンセサイザー。VA・FM・ウェーブテーブル・サンプルの 4 種類の音源、エフェクト、アルペジエーター / ステップシーケンサー、MIDI ファイルプレイヤー（バックグラウンド再生対応）。自分のサンプルや MIDI ファイルは「ファイル」アプリや Finder から HSynth のフォルダへ追加します。",
+  "project": "ios/HSynth.xcodeproj",
+  "scheme": "HSynth",
+  "target": "HSynth",
+  "xcodePath": "",
+  "icon": "ios/HSynth/Assets.xcassets/AppIcon.appiconset/icon-1024.png",
+  "reviewedEntitlements": []
+}

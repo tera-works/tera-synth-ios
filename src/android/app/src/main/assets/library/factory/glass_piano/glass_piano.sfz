@@ -1,0 +1,13 @@
+// Glass Piano - synthesized multisample for HSynth (self-made, CC0)
+<control> default_path=samples/
+<global> ampeg_release=0.6 amp_veltrack=60
+<region> sample=gp_36_p.wav lokey=0 hikey=41 pitch_keycenter=36 hivel=79
+<region> sample=gp_36_f.wav lokey=0 hikey=41 pitch_keycenter=36 lovel=80
+<region> sample=gp_48_p.wav lokey=42 hikey=53 pitch_keycenter=48 hivel=79
+<region> sample=gp_48_f.wav lokey=42 hikey=53 pitch_keycenter=48 lovel=80
+<region> sample=gp_60_p.wav lokey=54 hikey=65 pitch_keycenter=60 hivel=79
+<region> sample=gp_60_f.wav lokey=54 hikey=65 pitch_keycenter=60 lovel=80
+<region> sample=gp_72_p.wav lokey=66 hikey=77 pitch_keycenter=72 hivel=79
+<region> sample=gp_72_f.wav lokey=66 hikey=77 pitch_keycenter=72 lovel=80
+<region> sample=gp_84_p.wav lokey=78 hikey=127 pitch_keycenter=84 hivel=79
+<region> sample=gp_84_f.wav lokey=78 hikey=127 pitch_keycenter=84 lovel=80

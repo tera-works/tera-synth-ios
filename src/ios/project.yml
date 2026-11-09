@@ -1,0 +1,83 @@
+# XcodeGen spec for the iOS app: `brew install xcodegen && xcodegen` in this
+# folder creates HSynth.xcodeproj (not committed). The engine, the desktop
+# audio (miniaudio) / CoreMIDI code and the factory content are shared with
+# the other hosts.
+name: HSynth
+options:
+  bundleIdPrefix: com.hsynth
+  deploymentTarget:
+    iOS: "16.0"
+  createIntermediateGroups: true
+settings:
+  base:
+    CLANG_CXX_LANGUAGE_STANDARD: c++17
+    CLANG_CXX_LIBRARY: libc++
+    SWIFT_VERSION: "5.0"
+    GCC_OPTIMIZATION_LEVEL_Release: "3"
+targets:
+  HSynth:
+    type: application
+    platform: iOS
+    sources:
+      - path: HSynth
+      - path: ../engine/src
+        group: Engine
+        excludes:
+          - "**/*.inc"
+      - path: ../desktop/src/audio_out.cpp
+        group: Host
+      - path: ../desktop/src/midi_in_coremidi.cpp
+        group: Host
+      - path: ../desktop/src/midi_out_coremidi.cpp
+        group: Host
+      - path: ../desktop/src/remote_link.cpp
+        group: Host
+      - path: ../android/app/src/main/assets/presets
+        type: folder
+        buildPhase: resources
+      - path: ../android/app/src/main/assets/library
+        type: folder
+        buildPhase: resources
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.hsynth.ios
+        PRODUCT_NAME: HSynth
+        SWIFT_OBJC_BRIDGING_HEADER: HSynth/HSynth-Bridging-Header.h
+        HEADER_SEARCH_PATHS:
+          - $(SRCROOT)/../engine/include
+          - $(SRCROOT)/../engine/src
+          - $(SRCROOT)/../desktop/src
+          - $(SRCROOT)/../third_party/miniaudio
+        TARGETED_DEVICE_FAMILY: "1,2"
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ENABLE_BITCODE: NO
+        GCC_PREPROCESSOR_DEFINITIONS: ["$(inherited)", "NDEBUG=1"]
+    dependencies:
+      - sdk: CoreMIDI.framework
+      - sdk: AVFoundation.framework
+      - sdk: AudioToolbox.framework
+      - sdk: CoreAudio.framework
+      - sdk: CoreAudioKit.framework
+    info:
+      path: HSynth/Info.plist
+      properties:
+        CFBundleDisplayName: HSynth
+        # version: CFBundleShortVersionString = the release tag (v0.3.0); CFBundleVersion must grow with every release
+        CFBundleShortVersionString: "0.8.0"
+        CFBundleVersion: "7"
+        UILaunchScreen: {}
+        UIBackgroundModes: [audio]
+        UIRequiresFullScreen: true
+        UIStatusBarHidden: true
+        UISupportedInterfaceOrientations: [UIInterfaceOrientationLandscapeLeft, UIInterfaceOrientationLandscapeRight]
+        UISupportedInterfaceOrientations~ipad: [UIInterfaceOrientationLandscapeLeft, UIInterfaceOrientationLandscapeRight, UIInterfaceOrientationPortrait, UIInterfaceOrientationPortraitUpsideDown]
+        NSMicrophoneUsageDescription: "The microphone feeds the vocoder and the looper."
+        # network MIDI session: a PC (rtpMIDI) can play and remote-control the synth over Wi-Fi
+        NSLocalNetworkUsageDescription: "Network MIDI lets a computer play and control HSynth over Wi-Fi."
+        NSBonjourServices: [_apple-midi._udp]
+        # Bluetooth LE MIDI: connect to BLE MIDI devices / advertise the iPhone as one
+        NSBluetoothAlwaysUsageDescription: "Bluetooth MIDI connects keyboards and controllers, and lets a computer play and control HSynth."
+        # Documents (library / presets / midi) is visible in the Files app and in Finder (iPhone > Files),
+        # so the user's samples and MIDI files are copied in there and never bundled
+        UIFileSharingEnabled: true
+        LSSupportsOpeningDocumentsInPlace: true

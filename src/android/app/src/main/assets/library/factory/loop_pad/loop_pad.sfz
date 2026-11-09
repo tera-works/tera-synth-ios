@@ -1,0 +1,2 @@
+// Loop Pad - additive stereo pad with seamless loop (self-made, CC0)
+<region> sample=pad_c3_loop.wav pitch_keycenter=48 tune=-4 loop_mode=loop_continuous

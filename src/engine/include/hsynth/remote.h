@@ -101,6 +101,9 @@ public:
         std::function<void(Json& status)> status;   // extra fields for "status" (song name, ports, ...)
         // Host-specific operations ("host.*" ops): true if handled (reply filled).
         std::function<bool(const std::string& op, const Json& request, Json& reply)> extra;
+        // Setup files (setup_get / setup_set): the host's own settings to store, and to apply.
+        std::function<void(Json& host)> hostSettings;
+        std::function<void(const Json& host)> applyHostSettings;
     };
     using Output = std::function<void(const std::vector<uint8_t>& message)>;
 

@@ -725,7 +725,7 @@ void Voice::render(float* L, float* R, int n, const VoiceContext& ctx) {
             if (!pl.active()) continue;
             const int l = relLayer_[i];
             float tl[kControlBlock] = {}, tr[kControlBlock] = {};
-            pl.setPitch(notePitch_ + ctx.pitchBendSemis + p[P::layer(l, P::LCoarse)] + p[P::layer(l, P::LFine)] / 100.0f,
+            pl.setPitch(notePitch_ + ctx.pitchBendSemis + ctx.vibrato + p[P::layer(l, P::LCoarse)] + p[P::layer(l, P::LFine)] / 100.0f,
                         sampleRate_, ctx.quality);
             pl.render(tl, tr, n, p[P::layer(l, P::LLevel)]);
             const float lpan = p[P::layer(l, P::LPan)];
@@ -835,7 +835,7 @@ void Voice::render(float* L, float* R, int n, const VoiceContext& ctx) {
         lfo3Value_ = lfo3_.advance((LfoWave)(int)p[P::Lfo3Wave], rate3, dtSec, rng3_);
     }
 
-    float basePitch = (float)key_ + notePitch_ + ctx.pitchBendSemis + D(ModDest::Pitch) * 24.0f;
+    float basePitch = (float)key_ + notePitch_ + ctx.pitchBendSemis + ctx.vibrato + D(ModDest::Pitch) * 24.0f;
     {
         const float tune = ctx.masterTune + p[P::TuneC + key_ % 12] * 0.01f;  // master tune + scale tuning
         if (tune != 0.0f) basePitch += tune;
@@ -843,17 +843,24 @@ void Voice::render(float* L, float* R, int n, const VoiceContext& ctx) {
     if (glide_ != 0.0f || unisonDetune != 0.0f) {
         basePitch += glide_ + unisonDetune * clampf(1.0f + D(ModDest::UnisonDetune), 0.0f, 4.0f);
         // exponential glide: ~99 % of the interval within voice.glide seconds
-        const float t = p[P::Glide];
+        const float t = ctx.ccGlide >= 0.0f ? ctx.ccGlide : p[P::Glide];
         glide_ = t <= 0.0005f ? 0.0f : glide_ * std::exp(-4.6f * dtSec / t);
         if (std::fabs(glide_) < 0.001f) glide_ = 0.0f;
     }
 
     // Filter
-    const auto ftype = (FilterType)(int)p[P::FilterType];
-    const float cutoffOct = p[P::FilterKeytrack] * (float)(key_ - 60) / 12.0f + (p[P::FilterEnvAmt] + D(ModDest::FilterEnvAmt)) * e2 * 6.0f +
-                            p[P::FilterVelAmt] * 3.0f * (velocity_ - 1.0f) + D(ModDest::Cutoff) * 5.0f;
-    const float cutoff = p[P::FilterCutoff] * fastExp2(clampf(cutoffOct, -12.0f, 12.0f));
-    const float reso = clampf(p[P::FilterReso] + D(ModDest::Resonance), 0.0f, 1.0f);
+    auto ftype = (FilterType)(int)p[P::FilterType];
+    float cutoffOct = p[P::FilterKeytrack] * (float)(key_ - 60) / 12.0f + (p[P::FilterEnvAmt] + D(ModDest::FilterEnvAmt)) * e2 * 6.0f +
+                      p[P::FilterVelAmt] * 3.0f * (velocity_ - 1.0f) + D(ModDest::Cutoff) * 5.0f + ctx.ccCutoffOct;
+    float cutoff = p[P::FilterCutoff] * fastExp2(clampf(cutoffOct, -12.0f, 12.0f));
+    float reso = clampf(p[P::FilterReso] + D(ModDest::Resonance) + ctx.ccReso, 0.0f, 1.0f);
+    if (ftype == FilterType::Off && (ctx.ccCutoffOct < -0.01f || ctx.ccReso > 0.01f)) {
+        // CC74 / CC71 on a preset without a filter (e.g. the sampled sounds): a 12 dB low-pass
+        // that is fully open at the controllers' centre, so brightness / resonance work everywhere
+        ftype = FilterType::LP12;
+        cutoff = 18000.0f * fastExp2(clampf(ctx.ccCutoffOct, -12.0f, 0.0f));
+        reso = clampf(ctx.ccReso, 0.0f, 1.0f);
+    }
     const float drive = clampf(p[P::FilterDrive] + D(ModDest::Drive), 0.0f, 1.0f);
     const float fmorph = clampf(p[P::FilterMorph] + D(ModDest::FilterMorph), 0.0f, 1.0f);
     const bool hq = ctx.quality >= 2;

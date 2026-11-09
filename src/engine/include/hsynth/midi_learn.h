@@ -38,6 +38,10 @@ public:
     // in them (MIDI 1.0 or MIDI 2.0 channel voice) are learned / mapped like MIDI 1.0 CCs.
     void onUmp(const uint32_t* words, size_t count, Engine& engine);
 
+    // Tells the engine which standard controllers (CC1, 5, 11, 71, 74, 91, 94) are learned on
+    // which part, so the mapping replaces the standard response there. onMidi does it too.
+    void syncStandardOverrides(Engine& engine) const;
+
     std::vector<MidiMapping> mappings() const;
     void setMappings(std::vector<MidiMapping> m);
     void removeParam(int param);              // every mapping of the parameter
@@ -50,6 +54,7 @@ public:
     bool save(const std::string& path, std::string& error) const;
 
 private:
+    void syncLocked(Engine& engine, int onlyCc) const;
     mutable std::mutex mutex_;
     std::vector<MidiMapping> maps_;
     int armed_ = -1, armedPart_ = -1, lastLearned_ = -1;

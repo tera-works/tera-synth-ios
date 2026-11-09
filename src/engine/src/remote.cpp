@@ -15,6 +15,7 @@
 #include "hsynth/params.h"
 #include "hsynth/preset.h"
 #include "hsynth/preset_index.h"
+#include "hsynth/setup.h"
 #include "hsynth/smf.h"
 
 namespace hsynth {
@@ -132,7 +133,7 @@ namespace {
 const char* kOps[] = {"hello", "param_info", "mix_info", "get", "set", "mix_get", "mix_set", "get_state", "set_state",
                       "mode", "select_part", "presets", "load_preset", "save_preset", "samples", "impulse", "files",
                       "note", "event", "panic", "transport", "looper", "phrase", "songs", "song_load", "song",
-                      "status", "meters", "settings", "learn", "subscribe", "unsubscribe"};
+                      "status", "meters", "settings", "learn", "subscribe", "unsubscribe", "setup_get", "setup_set"};
 
 const char* kKinds[] = {"float", "int", "enum", "bool"};
 
@@ -892,6 +893,35 @@ Json RemoteControl::handle(const Json& req) {
         if (!state || !state->isObject()) return errorReply("'state' must be a preset or multi object");
         Json r;
         setState(*state, r);
+        return r;
+    }
+
+    // setup files (setup.h): state + MIDI learn + host settings in one object
+    if (op == "setup_get") {
+        Json host = Json::object();
+        if (hooks_.hostSettings) hooks_.hostSettings(host);
+        Json setup;
+        std::string err;
+        Json::parse(makeSetupJson(engine_, strField(req, "name").empty() ? "Setup" : strField(req, "name"),
+                                  config_.libraryRoot, config_.learn, host), setup, err);
+        Json r = okReply();
+        r.set("setup", setup);
+        return r;
+    }
+    if (op == "setup_set") {
+        const Json* setup = req.find("setup");
+        if (!setup || !setup->isObject()) return errorReply("'setup' must be an hsynth-setup object");
+        SetupResult res;
+        std::string err;
+        if (!applySetupJson(engine_, setup->dump(0), config_.libraryRoot, config_.learn, res, err)) return errorReply(err);
+        if (res.hasState && hooks_.setMultiTimbral) hooks_.setMultiTimbral(res.multi);
+        if (hooks_.applyHostSettings) hooks_.applyHostSettings(res.host);
+        if (res.hasState && hooks_.presetLoaded) hooks_.presetLoaded(res.multi ? -1 : 0, res.name);
+        changed();
+        Json r = okReply();
+        r.set("name", res.name);
+        r.set("multi", engine_.multiTimbral());
+        if (!res.warnings.empty()) r.set("warnings", stringArray(res.warnings));
         return r;
     }
 

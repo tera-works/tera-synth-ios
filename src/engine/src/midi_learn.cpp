@@ -92,6 +92,7 @@ bool MidiLearn::onMidi(const uint8_t* data, size_t len, Engine& engine) {
         lastLearned_ = armed_;
         armed_ = -1;
     }
+    if (Engine::standardCcIndex(cc) >= 0) syncLocked(engine, cc);
     bool hit = false;
     for (const auto& m : maps_) {
         if (m.cc != cc || (m.channel >= 0 && m.channel != ch)) continue;
@@ -101,6 +102,23 @@ bool MidiLearn::onMidi(const uint8_t* data, size_t len, Engine& engine) {
         hit = true;
     }
     return hit;
+}
+
+void MidiLearn::syncLocked(Engine& engine, int onlyCc) const {
+    // a standard controller learned for a part parameter replaces its standard response there
+    const int sel = engine.multiTimbral() ? engine.selectedPart() : 0;
+    for (int cc : Engine::kStandardCcs) {
+        if (onlyCc >= 0 && cc != onlyCc) continue;
+        uint32_t parts = 0;
+        for (const auto& m : maps_)
+            if (m.cc == cc && isPartParam(m.param)) parts |= 1u << (m.part >= 0 ? m.part : sel);
+        for (int k = 0; k < kNumParts; ++k) engine.setStandardCcOverride(k, cc, (parts >> k) & 1u);
+    }
+}
+
+void MidiLearn::syncStandardOverrides(Engine& engine) const {
+    std::lock_guard<std::mutex> lock(mutex_);
+    syncLocked(engine, -1);
 }
 
 std::vector<MidiMapping> MidiLearn::mappings() const {

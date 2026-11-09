@@ -41,6 +41,11 @@ struct VoiceContext {
     double beat = 0.0;             // tempo position (beats) at the start of this control block (motion lanes)
     float pedal = 0.0f;            // sustain pedal 0..1 of the part (half pedal)
     float superKnob = 0.0f;        // perf.super (same for every part), mod source "super"
+    // standard performance controllers of the part (engine.h PartState), for every preset:
+    float vibrato = 0.0f;          // CC1 vibrato, semitones (when the preset does not route the mod wheel)
+    float ccCutoffOct = 0.0f;      // CC74 brightness, octaves added to the filter cutoff
+    float ccReso = 0.0f;           // CC71 resonance, added to the filter resonance (-1..1)
+    float ccGlide = -1.0f;         // CC5 portamento time, seconds (< 0 = the preset's voice.glide)
     const SampleSet* sampleSets[kNumLayers] = {};
     uint32_t seq[kNumLayers] = {};    // round-robin counters (SFZ seq_position)
     int keyswitch[kNumLayers] = {-1, -1, -1};  // active SFZ keyswitch per layer (-1 = default)

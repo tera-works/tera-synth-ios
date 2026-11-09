@@ -19,6 +19,7 @@
 #include "hsynth/params.h"
 #include "hsynth/preset.h"
 #include "hsynth/preset_index.h"
+#include "hsynth/setup.h"
 #include "hsynth/wav.h"
 #include "midi_in.h"
 #include "midi_out.h"
@@ -703,6 +704,37 @@ float toNormalized(const ParamInfo& p, float v) {
     NSMutableArray* r = [NSMutableArray arrayWithObject:ns(m.name)];
     for (int k = 0; k < kNumParts; ++k) [r addObject:ns(m.parts[k].name)];
     return r;
+}
+
+// ---------------------------------------------------------------- setup files
+
+- (NSString*)setupJson:(NSString*)name partNames:(NSArray<NSString*>*)names host:(NSString*)host {
+    Json h;
+    std::string err;
+    if (!Json::parse(str(host), h, err)) h = Json::object();
+    std::vector<std::string> parts;
+    for (NSString* n in names) parts.push_back(str(n));
+    return ns(makeSetupJson(*_engine, str(name), _libraryDir, &_learn, h, "", parts));
+}
+
+- (nullable NSDictionary*)applySetup:(NSString*)text {
+    SetupResult res;
+    std::string err;
+    if (!applySetupJson(*_engine, str(text), _libraryDir, &_learn, res, err)) {
+        _lastWarnings = @[ ns(err) ];
+        return nil;
+    }
+    if (res.hasState) {
+        _midi->setMultiTimbral(res.multi);
+        for (auto& s : _songLoaded) s.clear();  // the parts hold the setup's sounds now
+        _editPart = res.multi ? _engine->selectedPart() : 0;
+    }
+    if (res.hasMidiLearn) [self learnSave];
+    _lastWarnings = [self strings:res.warnings];
+    NSMutableArray* parts = [NSMutableArray array];
+    for (const auto& s : res.partNames) [parts addObject:ns(s)];
+    return @{@"name" : ns(res.name), @"state" : @(res.hasState), @"multi" : @(res.multi), @"parts" : parts,
+             @"host" : ns(res.host.dump(0))};
 }
 
 // ---------------------------------------------------------------- MIDI learn / out

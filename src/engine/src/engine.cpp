@@ -454,7 +454,7 @@ void Engine::noteOn(int part, const Event& in) {
     }
     PartState& ps = parts_[part];
     const auto mode = (VoiceMode)(int)ps.p[P::VoiceMode];
-    const bool glideOn = ps.p[P::Glide] > 0.0005f;
+    const bool glideOn = ps.p[P::Glide] > 0.0005f || ps.ccGlide > 0.0005f;
     const bool glideLegatoOnly = ps.p[P::GlideMode] > 0.5f;
     if (mode != VoiceMode::Poly) {
         // note stack: last note priority; a repeated key moves to the top
@@ -554,7 +554,7 @@ bool Engine::monoNoteOff(int part, const Event& e) {
         const int rawKey = top.channel;  // the stack keeps the untransposed key in .channel
         Event again = top;
         again.channel = kOmniChannel;
-        const bool glideOn = ps.p[P::Glide] > 0.0005f;
+        const bool glideOn = ps.p[P::Glide] > 0.0005f || ps.ccGlide > 0.0005f;
         bool any = false;
         for (auto& v : voices_)
             if (v.active() && !v.released() && v.part == part && v.noteId() == ps.monoId) {
@@ -769,8 +769,17 @@ void Engine::partEvent(int part, const Event& e) {
                 case 10: if (multiActive_) ps.ccPan = clampf(e.value * 2.0f - 1.0f, -1.0f, 1.0f); break;
                 case 11:
                     ps.ctx.expression = clampf(e.value, 0.0f, 1.0f);
-                    if (multiActive_) ps.ccExpr = ps.ctx.expression;
+                    ps.ccExpr = ps.ctx.expression;  // part level, both modes (unless the preset routes it)
                     break;
+                // standard controllers that work on every preset (GM2-style, centre = no change)
+                case 5: {  // portamento time: 0 = the preset's glide, then ~5 ms .. 2 s
+                    const float v = clampf(e.value, 0.0f, 1.0f);
+                    ps.ccGlide = v <= 0.0f ? -1.0f : 0.005f * std::pow(400.0f, v);
+                    break;
+                }
+                case 71: ps.ccReso = clampf((e.value * 127.0f - 64.0f) / 63.0f, -1.0f, 1.0f) * 0.9f; break;
+                case 74: ps.ccCutoffOct = clampf((e.value * 127.0f - 64.0f) / 63.0f, -1.0f, 1.0f) * 4.5f; break;
+                case 94: ps.ccDly = clampf(e.value, 0.0f, 1.0f); break;
                 case 64: partEvent(part, Event::control(EventType::Sustain, e.value)); break;
                 case 91: ps.ccRev = clampf(e.value, 0.0f, 1.0f); break;
                 case 93: ps.ccCho = clampf(e.value, 0.0f, 1.0f); break;
@@ -794,7 +803,7 @@ void Engine::partEvent(int part, const Event& e) {
                     ps.ctx.modWheel = 0.0f;
                     ps.ctx.chanPressure = 0.0f;
                     ps.ctx.expression = 1.0f;
-                    if (multiActive_) ps.ccExpr = 1.0f;
+                    ps.ccExpr = 1.0f;
                     if (ps.sustain) { ps.sustain = false; releaseSustained(part); }
                     ps.pedal = 0.0f;
                     ps.rpnMsb = ps.rpnLsb = 127;
@@ -1151,6 +1160,10 @@ void Engine::songNotesOff() {
         ps.pedal = 0.0f;
         ps.ccRev = 0.0f;
         ps.ccCho = 0.0f;
+        ps.ccDly = 0.0f;
+        ps.ccGlide = -1.0f;
+        ps.ccCutoffOct = 0.0f;
+        ps.ccReso = 0.0f;
         ps.rpnBend = -1.0f;
         ps.rpnMsb = ps.rpnLsb = 127;
     }
@@ -1544,12 +1557,61 @@ void Engine::updateInserts(int part) {
                                  q == (int)Quality::High);
 }
 
+int Engine::standardCcIndex(int cc) {
+    for (int i = 0; i < 7; ++i)
+        if (kStandardCcs[i] == cc) return i;
+    return -1;
+}
+
+void Engine::setStandardCcOverride(int part, int cc, bool on) {
+    const int i = standardCcIndex(cc);
+    if (i < 0 || part < 0 || part >= kNumParts) return;
+    if (on) ccOverride_[part].fetch_or(1u << i, std::memory_order_relaxed);
+    else ccOverride_[part].fetch_and(~(1u << i), std::memory_order_relaxed);
+}
+
+bool Engine::standardCcOverridden(int part, int cc) const {
+    const int i = standardCcIndex(cc);
+    return i >= 0 && part >= 0 && part < kNumParts && (ccOverride_[part].load(std::memory_order_relaxed) >> i) & 1u;
+}
+
+void Engine::standardControllers(int part, int n) {
+    PartState& ps = parts_[part];
+    const uint32_t ovr = ccOverride_[part].load(std::memory_order_relaxed);
+    auto learned = [ovr](int cc) { return ((ovr >> standardCcIndex(cc)) & 1u) != 0; };
+    // Does the preset route the mod wheel / expression itself (mod matrix)? Then it keeps
+    // its own response and the standard one (vibrato / part level) stays out of the way.
+    bool wheel = false, expr = false;
+    if (ps.ctx.modWheel > 0.0f || ps.ccExpr < 1.0f) {
+        for (int s = 0; s < P::kModSlots; ++s) {
+            if (ps.p[P::mod(s, P::ModAmt)] == 0.0f || (int)ps.p[P::mod(s, P::ModDst)] <= 0) continue;
+            const int src = (int)ps.p[P::mod(s, P::ModSrc)], via = (int)ps.p[P::mod(s, P::ModVia)];
+            wheel = wheel || src == (int)ModSource::ModWheel || via == (int)ModSource::ModWheel;
+            expr = expr || src == (int)ModSource::Expression || via == (int)ModSource::Expression;
+        }
+    }
+    ps.exprLevel = expr || learned(11) ? 1.0f : ps.ccExpr;
+    // CC1: vibrato 5.5 Hz, up to +-0.5 semitone at full wheel
+    if (!wheel && !learned(1) && ps.ctx.modWheel > 0.0f) {
+        ps.vibPhase += 2.0f * 3.14159265f * 5.5f * (float)n / sampleRate_;
+        if (ps.vibPhase > 2.0f * 3.14159265f) ps.vibPhase -= 2.0f * 3.14159265f;
+        ps.ctx.vibrato = ps.ctx.modWheel * 0.5f * std::sin(ps.vibPhase);
+    } else {
+        ps.ctx.vibrato = 0.0f;
+    }
+    ps.ctx.ccCutoffOct = learned(74) ? 0.0f : ps.ccCutoffOct;
+    ps.ctx.ccReso = learned(71) ? 0.0f : ps.ccReso;
+    ps.ctx.ccGlide = learned(5) ? -1.0f : ps.ccGlide;
+    ps.revSend = learned(91) ? 0.0f : ps.ccRev * 0.6f;
+    ps.dlySend = learned(94) ? 0.0f : ps.ccDly * 0.6f;
+}
+
 void Engine::updatePartTargets() {
     for (int k = 0; k < kNumParts; ++k) {
         PartState& ps = parts_[k];
         const float* m = mix_[k];
         const float vol = m[Mix::Mute] > 0.5f ? 0.0f
-                                               : m[Mix::Volume] * m[Mix::Volume] * ps.ccVolume * ps.ccVolume * ps.ccExpr * ps.ccExpr;
+                                               : m[Mix::Volume] * m[Mix::Volume] * ps.ccVolume * ps.ccVolume * ps.exprLevel * ps.exprLevel;
         const float pan = clampf(m[Mix::Pan] + ps.ccPan, -1.0f, 1.0f);
         const float gl = vol * (pan > 0.0f ? 1.0f - pan : 1.0f);
         const float gr = vol * (pan < 0.0f ? 1.0f + pan : 1.0f);
@@ -1796,7 +1858,7 @@ void Engine::processMulti(float* L, float* R, int n) {
         float* bl = bus(k, 0);
         float* br = bus(k, 1);
         {
-            const float sa = std::min(1.0f, ps.p[P::SendA] + ps.ccRev * 0.6f), sb = ps.p[P::SendB];
+            const float sa = std::min(1.0f, ps.p[P::SendA] + ps.revSend), sb = std::min(1.0f, ps.p[P::SendB] + ps.dlySend);
             {
                 float pk = 0.0f;
                 for (int i = 0; i < n; ++i) pk = std::max(pk, std::max(std::fabs(bl[i]), std::fabs(br[i])));
@@ -1953,6 +2015,7 @@ void Engine::process(float* L, float* R, int n) {
         ps.ctx.pitchBendSemis = ps.pitchBend * (ps.rpnBend >= 0.0f ? ps.rpnBend : ps.p[P::BendRange]);
         ps.ctx.pedal = ps.pedal;
         ps.ctx.superKnob = p_[P::SuperKnob];  // one Super Knob for every part
+        standardControllers((int)(&ps - parts_), n);
     }
     VoiceContext& ctx0 = parts_[0].ctx;
 
@@ -1978,8 +2041,22 @@ void Engine::process(float* L, float* R, int n) {
             inserts_[0].setTempo(rack_.tempo(), rack_.beat());
             inserts_[0].process(L, R, n);
         }
+        {  // CC11 expression as the level (ramped over the block)
+            PartState& p0 = parts_[0];
+            const float target = p0.exprLevel * p0.exprLevel;
+            if (target != 1.0f || p0.singleGain != 1.0f) {
+                const float g0 = p0.singleGain, step = (target - g0) / (float)n;
+                for (int i = 0; i < n; ++i) {
+                    const float g = g0 + step * (float)(i + 1);
+                    L[i] *= g;
+                    R[i] *= g;
+                }
+                p0.singleGain = target;
+            }
+        }
         // send buses (post insert)
-        const float sa = p_[P::SendA], sb = p_[P::SendB];
+        const float sa = std::min(1.0f, p_[P::SendA] + parts_[0].revSend),
+                    sb = std::min(1.0f, p_[P::SendB] + parts_[0].dlySend);
         if (sa > 0.0f || sb > 0.0f) {
             sendUsed_ = true;
             for (int i = 0; i < n; ++i) {

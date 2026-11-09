@@ -152,6 +152,14 @@ NS_ASSUME_NONNULL_BEGIN
 /// [scene name, part 1 name, ..., part 16 name] or nil
 - (nullable NSArray<NSString*>*)loadScene:(NSString*)path;
 
+// setup files (engine setup.h): parts, effects, MIDI learn and app settings in one file,
+// shared with the desktop and Android apps. host = JSON object of the app settings.
+- (NSString*)setupJson:(NSString*)name partNames:(NSArray<NSString*>*)names host:(NSString*)host
+    NS_SWIFT_NAME(setupJson(_:partNames:host:));
+/// Applies a setup file's text: {"name", "state" (bool), "multi" (bool), "parts" [16 names],
+/// "host" (JSON text)}, or nil (the error is in lastWarnings).
+- (nullable NSDictionary*)applySetup:(NSString*)text;
+
 // sound snapshots (set lists): the single-mode sound to / from a preset file anywhere
 - (BOOL)saveSoundFile:(NSString*)path name:(NSString*)name NS_SWIFT_NAME(saveSoundFile(_:name:));
 /// Loads it as the whole sound (single mode). The preset's name, or nil on failure.

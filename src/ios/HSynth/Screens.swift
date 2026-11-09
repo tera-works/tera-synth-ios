@@ -426,6 +426,7 @@ struct SystemScreen: View {
                     Text("同時発音数を減らすと、重い音色や曲でも音切れしにくくなります。Quality は Low ほど軽く、High ほどきれいです。")
                         .font(.system(size: 11)).foregroundColor(Hw.engrave)
                 }
+                SetupPanel()
                 Panel(title: "MIDI") {
                     Lcd(text: "IN: " + (e.midiInputs.isEmpty ? "(none)" : e.midiInputs.joined(separator: ", ")), size: 13)
                     HStack {
@@ -835,6 +836,98 @@ struct ArpPanel: View {
             }
         }
         .onAppear { running = e.transportRunning }
+    }
+}
+
+// ---------------------------------------------------------------- setup files
+
+/// A setup file (engine setup.h) for the share / save sheet.
+struct SetupDocument: FileDocument {
+    static var readableContentTypes: [UTType] { [.json] }
+    var text: String
+    init(text: String) { self.text = text }
+    init(configuration: ReadConfiguration) throws {
+        text = String(decoding: configuration.file.regularFileContents ?? Data(), as: UTF8.self)
+    }
+    func fileWrapper(configuration: WriteConfiguration) throws -> FileWrapper {
+        FileWrapper(regularFileWithContents: Data(text.utf8))
+    }
+}
+
+/// System screen: export / import the whole playing setup (parts, effects, MIDI learn, settings).
+struct SetupPanel: View {
+    @EnvironmentObject var model: SynthModel
+    @State private var exporting = false
+    @State private var importing = false
+    @State private var document = SetupDocument(text: "")
+    @State private var message = ""
+
+    var body: some View {
+        Panel(title: "Setup") {
+            HStack {
+                HwButton(title: "Export…") {
+                    document = SetupDocument(text: model.setupText(name: "Setup"))
+                    exporting = true
+                }
+                HwButton(title: "Import…") { importing = true }
+            }
+            if !message.isEmpty { Lcd(text: message, size: 12) }
+            Text("パート（MIDI チャンネル・プリセット・ミックス）、エフェクト、MIDI Learn、同時発音数を 1 つのファイルに書き出し・読み込みします。PC 版・Android 版と共通の形式です。")
+                .font(.system(size: 11)).foregroundColor(Hw.engrave)
+        }
+        .fileExporter(isPresented: $exporting, document: document, contentType: .json, defaultFilename: "setup") { result in
+            if case .success = result { message = "書き出しました" }
+        }
+        .fileImporter(isPresented: $importing, allowedContentTypes: [.json, .plainText, .data], allowsMultipleSelection: false) { result in
+            guard case .success(let urls) = result, let url = urls.first else { return }
+            message = model.importSetup(url)
+        }
+    }
+}
+
+extension SynthModel {
+    func setupText(name: String) -> String {
+        let d = UserDefaults.standard
+        let host: [String: Any] = ["voices": d.object(forKey: "maxVoices") as? Int ?? 128,
+                                   "quality": d.object(forKey: "quality") as? Int ?? 1]
+        let hostText = (try? JSONSerialization.data(withJSONObject: host)).map { String(decoding: $0, as: UTF8.self) } ?? "{}"
+        return engine.setupJson(name, partNames: partNames, host: hostText)
+    }
+
+    /// Applies a picked setup file; returns a message for the user.
+    func importSetup(_ url: URL) -> String {
+        let scoped = url.startAccessingSecurityScopedResource()
+        defer { if scoped { url.stopAccessingSecurityScopedResource() } }
+        guard let data = try? Data(contentsOf: url) else { return "読み込めませんでした" }
+        if comparing { compare() }
+        engine.songPlay(false)
+        guard let r = engine.applySetup(String(decoding: data, as: UTF8.self)) else {
+            return "読み込めませんでした: " + (engine.lastWarnings.first ?? "")
+        }
+        if (r["state"] as? Bool) == true {
+            multi = (r["multi"] as? Bool) ?? false
+            let parts = r["parts"] as? [String] ?? []
+            for k in 0..<min(16, parts.count) { partNames[k] = parts[k] }
+            editPart = Int(engine.editPart)
+            let shown = partNames[editPart].isEmpty ? "Init" : partNames[editPart]
+            presetName = multi ? "\(editPart + 1): \(shown)" : shown
+            soundLoaded()
+        }
+        if let h = (r["host"] as? String)?.data(using: .utf8),
+           let host = try? JSONSerialization.jsonObject(with: h) as? [String: Any] {
+            let d = UserDefaults.standard
+            if let v = host["voices"] as? Int {
+                d.set(max(8, min(128, v)), forKey: "maxVoices")
+                engine.maxVoices = Int32(max(8, min(128, v)))
+            }
+            if let q = host["quality"] as? Int {
+                d.set(max(0, min(2, q)), forKey: "quality")
+                engine.setQuality(Int32(max(0, min(2, q))))
+            }
+        }
+        let name = r["name"] as? String ?? ""
+        show("Setup \(name)")
+        return "「\(name)」を読み込みました"
     }
 }
 

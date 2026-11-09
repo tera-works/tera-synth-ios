@@ -1,6 +1,7 @@
-// Desktop MIDI input. Windows: winmm (MIDI 1.0); macOS / iOS: CoreMIDI with the
-// MIDI 2.0 protocol (Universal MIDI Packets; MIDI 1.0 devices are converted by
-// CoreMIDI). Everything goes to the engine's portable MidiTranslator, like on Android.
+// Desktop MIDI input. Windows: winmm (MIDI 1.0); macOS / iOS: CoreMIDI, MIDI 1.0 bytes
+// by default, or the MIDI 2.0 protocol (Universal MIDI Packets; MIDI 1.0 devices are
+// converted by CoreMIDI) with setUmpInput(true). Everything goes to the engine's portable
+// MidiTranslator, like on Android.
 #pragma once
 
 #include <atomic>
@@ -30,6 +31,12 @@ public:
     int takeProgramChange() { return pendingProgram_.exchange(-1); }
     int eventCount() const { return eventCount_.load(); }
     std::string lastMessage() const;
+    // CoreMIDI: receive with the MIDI 2.0 protocol (UMP) instead of MIDI 1.0 bytes.
+    // Takes effect at once (the input port is made again). No-op on Windows.
+    void setUmpInput(bool on);
+    bool umpInput() const { return umpInput_; }
+    // One line for the user: port state, sources, messages received ("" on Windows).
+    std::string status() const;
 
     // System Exclusive messages (complete F0..F7, driver thread) with the name of the
     // output port that reaches the sender ("" = unknown, kVirtualPort = our virtual
@@ -54,6 +61,8 @@ private:
     mutable std::mutex mutex_;
     std::atomic<int> pendingProgram_{-1};
     std::atomic<int> eventCount_{0};
+    std::atomic<int> rawCount_{0};  // messages received from the driver (before the translator)
+    bool umpInput_ = false;
     std::string last_;
     std::vector<std::string> names_;
     hsynth::MidiLearn* learn_ = nullptr;

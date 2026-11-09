@@ -375,6 +375,7 @@ struct SystemScreen: View {
     @State private var recSeconds = -1.0
     @State private var lastRecording = ""
     @State private var bleSheet: BluetoothMidiSheet.Mode?
+    @State private var bleList = false
     private let timer = Timer.publish(every: 0.5, on: .main, in: .common).autoconnect()
 
     var body: some View {
@@ -429,6 +430,7 @@ struct SystemScreen: View {
                 SetupPanel()
                 Panel(title: "MIDI") {
                     Lcd(text: "IN: " + (e.midiInputs.isEmpty ? "(none)" : e.midiInputs.joined(separator: ", ")), size: 13)
+                    Text(e.midiStatus).font(.system(size: 11, design: .monospaced)).foregroundColor(Hw.engrave)
                     HStack {
                         HwButton(title: "Refresh") {
                             e.refreshMidi()
@@ -450,9 +452,15 @@ struct SystemScreen: View {
                         }
                     }
                     HStack {
-                        HwButton(title: "Bluetooth MIDI") { bleSheet = .central }
+                        HwButton(title: "Bluetooth MIDI") { bleList = true }
                         HwButton(title: "Advertise") { bleSheet = .peripheral }
+                        HwButton(title: "MIDI 2.0", lit: e.umpInput) {
+                            e.umpInput = !e.umpInput
+                            tick += 1
+                        }
                     }
+                    Text("MIDI 2.0: オンにすると MIDI 2.0（UMP）で受信します（MIDI 2.0 機器の高分解能・ノートごとの制御）。普段はオフ（MIDI 1.0）で大丈夫です。上の行は受信の状態です（届いたメッセージの数と最後のメッセージ）。")
+                        .font(.system(size: 11)).foregroundColor(Hw.engrave)
                     Text("MIDI OUT には、画面の鍵盤で弾いた音符を送ります。MIDI Learn は、Edit 画面の Learn をオンにしてつまみをタップし、コントローラーを動かすと割り当てられます。")
                         .font(.system(size: 11)).foregroundColor(Hw.engrave)
                     Text("Bluetooth MIDI: BLE MIDI のキーボードやコントローラーを探して接続します。Advertise: この iPhone を Bluetooth MIDI 機器として公開し、Mac・PC・iPad から接続できるようにします（演奏も SysEx リモート操作も可。画面を開いている間だけ公開されます）。")
@@ -460,6 +468,16 @@ struct SystemScreen: View {
                 }
             }
             .padding(8)
+        }
+        .sheet(isPresented: $bleList) {
+            BleMidiView(ble: model.ble, systemScreen: {
+                bleList = false
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { bleSheet = .central }
+            }, done: {
+                bleList = false
+                model.engine.refreshMidi()
+                tick += 1
+            })
         }
         .sheet(isPresented: Binding(get: { bleSheet != nil }, set: { if !$0 { bleSheet = nil } })) {
             if let m = bleSheet {

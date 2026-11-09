@@ -92,6 +92,7 @@ float toNormalized(const ParamInfo& p, float v) {
         _audio = std::make_unique<AudioOut>(*_engine);
         _midi = std::make_unique<MidiIn>(*_engine);
         _midi->setLearn(&_learn);
+        _midi->setUmpInput([[NSUserDefaults standardUserDefaults] boolForKey:@"umpInput"]);  // default MIDI 1.0
         std::string learnErr;
         _learn.load(_userDir + "/midi_learn.json", learnErr);  // missing file: no mappings
         _midiOut = std::make_unique<MidiOut>();
@@ -411,6 +412,15 @@ float toNormalized(const ParamInfo& p, float v) {
     return a;
 }
 - (void)refreshMidi { _midi->openAll(); }
+- (NSString*)midiStatus {
+    const std::string last = _midi->lastMessage();
+    return ns(_midi->status() + (last.empty() ? "" : ", last " + last));
+}
+- (BOOL)umpInput { return _midi->umpInput(); }
+- (void)setUmpInput:(BOOL)on {
+    _midi->setUmpInput(on);
+    [[NSUserDefaults standardUserDefaults] setBool:on forKey:@"umpInput"];
+}
 
 - (BOOL)muted { return _audio->muted(); }
 - (void)setMuted:(BOOL)m { _audio->setMuted(m); }

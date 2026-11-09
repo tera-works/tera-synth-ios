@@ -1,8 +1,8 @@
-// macOS / iOS MIDI input via CoreMIDI. Every source is connected to a port that
-// uses the MIDI 2.0 protocol: CoreMIDI delivers Universal MIDI Packets (MIDI 2.0
-// devices with their full resolution and per-note controllers, MIDI 1.0 devices
-// converted), which go to the portable MidiTranslator through MidiIn::onUmp.
-// The MIDI 1.0 byte path (readProc / onBytes) remains for older systems.
+// macOS / iOS MIDI input via CoreMIDI. Every source is connected to one input port:
+// by default a MIDI 1.0 port (bytes, readProc -> onBytes), or with setUmpInput(true) a
+// port that uses the MIDI 2.0 protocol: CoreMIDI then delivers Universal MIDI Packets
+// (MIDI 2.0 devices with their full resolution and per-note controllers, MIDI 1.0
+// devices converted), which go to the portable MidiTranslator through MidiIn::onUmp.
 // SysEx (MIDI 1.0 bytes or UMP SysEx7 packets) is assembled per source and goes to
 // the SysEx handler with the name of the destination of the same device (replies).
 // A virtual destination + source named "HSynth" let other apps on this machine
@@ -103,7 +103,11 @@ struct Source {
 struct MidiIn::Impl {
     MIDIClientRef client = 0;
     MIDIPortRef port = 0;
+    bool portIsUmp = false;
+    OSStatus clientErr = 0, portErr = 0;
     std::vector<std::unique_ptr<Source>> sources;
+    // disconnected sources stay allocated: CoreMIDI may still be delivering to them
+    std::vector<std::unique_ptr<Source>> retired;
     MIDIEndpointRef virtualDest = 0, virtualSrc = 0;
     std::unique_ptr<Source> virtualIn;  // what arrives at the virtual destination
     uint8_t running = 0;  // running status
@@ -158,7 +162,9 @@ void readProc(const MIDIPacketList* list, void* refCon, void* srcRef) {
 // Devices came or went (USB, Bluetooth LE MIDI connected in the system's Bluetooth
 // screen, network sessions): reconnect every source. Runs on the client's run loop.
 void notifyProc(const MIDINotification* n, void* refCon) {
-    if (n && n->messageID == kMIDIMsgSetupChanged && refCon) static_cast<MidiIn*>(refCon)->openAll();
+    if (!n || !refCon) return;
+    if (n->messageID == kMIDIMsgSetupChanged || n->messageID == kMIDIMsgObjectAdded || n->messageID == kMIDIMsgObjectRemoved)
+        static_cast<MidiIn*>(refCon)->openAll();
 }
 }  // namespace
 
@@ -173,10 +179,23 @@ MidiIn::~MidiIn() {
 
 std::vector<std::string> MidiIn::openAll() {
     closeAll();
+    if (impl_->port && impl_->portIsUmp != umpInput_) {  // the protocol changed: make the port again
+        MIDIPortDispose(impl_->port);
+        impl_->port = 0;
+    }
     if (!impl_->client) {
-        if (MIDIClientCreate(CFSTR("HSynth"), notifyProc, this, &impl_->client) != noErr) return {};
+        impl_->clientErr = MIDIClientCreate(CFSTR("HSynth"), notifyProc, this, &impl_->client);
+        if (impl_->clientErr != noErr) {
+            impl_->client = 0;
+            return {};
+        }
+    }
+    if (!impl_->port) {
         OSStatus st = -1;
-        if (__builtin_available(macOS 11.0, iOS 14.0, *)) {
+        impl_->portIsUmp = false;
+        if (!umpInput_) {
+            // MIDI 1.0 bytes (readProc below)
+        } else if (__builtin_available(macOS 11.0, iOS 14.0, *)) {
             st = MIDIInputPortCreateWithProtocol(impl_->client, CFSTR("HSynth In"), kMIDIProtocol_2_0, &impl_->port,
                                                  ^(const MIDIEventList* list, void* srcRef) {
                                                      auto* src = static_cast<Source*>(srcRef);
@@ -188,8 +207,15 @@ std::vector<std::string> MidiIn::openAll() {
                                                      }
                                                  });
         }
-        if (st != noErr && MIDIInputPortCreate(impl_->client, CFSTR("HSynth In"), readProc, this, &impl_->port) != noErr)
+        if (st == noErr) impl_->portIsUmp = true;
+        else st = MIDIInputPortCreate(impl_->client, CFSTR("HSynth In"), readProc, this, &impl_->port);
+        impl_->portErr = st;
+        if (st != noErr) {
+            impl_->port = 0;
             return {};
+        }
+    }
+    if (!impl_->virtualIn) {
         // virtual endpoints: other apps / a PC (network session) can address the synth directly
         impl_->virtualIn = std::make_unique<Source>();
         impl_->virtualIn->self = this;
@@ -228,8 +254,12 @@ std::vector<std::string> MidiIn::openAll() {
 }
 
 void MidiIn::closeAll() {
-    for (auto& s : impl_->sources) MIDIPortDisconnectSource(impl_->port, s->endpoint);
+    for (auto& s : impl_->sources) {
+        if (impl_->port) MIDIPortDisconnectSource(impl_->port, s->endpoint);
+        impl_->retired.push_back(std::move(s));
+    }
     impl_->sources.clear();
+    if (impl_->retired.size() > 256) impl_->retired.erase(impl_->retired.begin(), impl_->retired.begin() + 128);
     std::lock_guard<std::mutex> lock(mutex_);
     names_.clear();
 }
@@ -247,6 +277,25 @@ void MidiIn::setMpe(bool on) {
 void MidiIn::setMultiTimbral(bool on) {
     std::lock_guard<std::mutex> lock(mutex_);
     translator_.setMultiTimbral(on);
+}
+
+void MidiIn::setUmpInput(bool on) {
+    if (on == umpInput_) return;
+    umpInput_ = on;
+    if (impl_->client) openAll();
+}
+
+std::string MidiIn::status() const {
+    char buf[200];
+    if (!impl_->client)
+        std::snprintf(buf, sizeof buf, "CoreMIDI client error %d", (int)impl_->clientErr);
+    else if (!impl_->port)
+        std::snprintf(buf, sizeof buf, "input port error %d", (int)impl_->portErr);
+    else
+        std::snprintf(buf, sizeof buf, "%s input, %d source(s) of %d, %d message(s) received, %d event(s)",
+                      impl_->portIsUmp ? "MIDI 2.0 (UMP)" : "MIDI 1.0", (int)impl_->sources.size(),
+                      (int)MIDIGetNumberOfSources(), rawCount_.load(), eventCount_.load());
+    return buf;
 }
 
 std::string MidiIn::lastMessage() const {
@@ -275,6 +324,7 @@ bool MidiIn::sendVirtual(const uint8_t* data, size_t len) {
 
 void MidiIn::onUmp(const uint32_t* words, size_t count) {
     if (count == 0) return;
+    rawCount_.fetch_add(1);
     std::lock_guard<std::mutex> lock(mutex_);
     Sink sink(engine_, pendingProgram_, eventCount_);
     if (learn_) learn_->onUmp(words, count, engine_);
@@ -285,6 +335,7 @@ void MidiIn::onUmp(const uint32_t* words, size_t count) {
 }
 
 void MidiIn::onBytes(const uint8_t* data, size_t len) {
+    rawCount_.fetch_add(1);
     std::lock_guard<std::mutex> lock(mutex_);
     Sink sink(engine_, pendingProgram_, eventCount_);
     if (learn_) learn_->onMidi(data, len, engine_);

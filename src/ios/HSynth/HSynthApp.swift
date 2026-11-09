@@ -4,6 +4,12 @@ import SwiftUI
 /// Shared engine state for the views.
 final class SynthModel: ObservableObject {
     let engine: HSynthEngine
+    /// BLE MIDI through Core Bluetooth (made on first use, or at start when devices are remembered)
+    lazy var ble: BleMidiCentral = {
+        let b = BleMidiCentral()
+        b.onConnected = { [weak self] in self?.engine.refreshMidi() }
+        return b
+    }()
     let player: PlayerModel
     let sets = SetListModel()
     @Published var presetName = "Init"
@@ -65,6 +71,7 @@ final class SynthModel: ObservableObject {
         engine.maxVoices = Int32(UserDefaults.standard.object(forKey: "maxVoices") as? Int ?? 128)
         engine.setQuality(Int32(UserDefaults.standard.object(forKey: "quality") as? Int ?? 1))
         player.ensureAudio = { [weak self] in self?.start() }
+        if !BleMidiCentral.knownIDs.isEmpty { _ = ble }  // reconnect the BLE MIDI devices used before
         player.onSongLoaded = { [weak self] in self?.songLoaded() }
         // a phone call or another app took the audio: pause the song, restart the audio afterwards
         NotificationCenter.default.addObserver(forName: AVAudioSession.interruptionNotification, object: nil, queue: .main) { [weak self] n in

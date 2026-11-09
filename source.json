@@ -14,8 +14,17 @@
           "NSMicrophoneUsageDescription": "The microphone feeds the vocoder and the looper."
         }
       },
-      "iconURL": "https://github.com/tera-works/tera-synth-ios/releases/download/v0.8.3/icon.png",
+      "iconURL": "https://github.com/tera-works/tera-synth-ios/releases/download/v0.8.4/icon.png",
       "versions": [
+        {
+          "version": "0.8.4",
+          "buildVersion": "10",
+          "minOSVersion": "16.0",
+          "size": 4576716,
+          "downloadURL": "https://github.com/tera-works/tera-synth-ios/releases/download/v0.8.4/app.ipa",
+          "date": "2026-11-09T06:15:27Z",
+          "localizedDescription": "MIDI devices are picked up automatically when plugged in; Bluetooth MIDI uses the iOS standard screen"
+        },
         {
           "version": "0.8.3",
           "buildVersion": "9",
@@ -94,5 +103,5 @@
   "news": [],
   "identifier": "io.github.tera-works.tera-synth-ios",
   "sourceURL": "https://tera-works.github.io/tera-synth-ios/source.json",
-  "iconURL": "https://github.com/tera-works/tera-synth-ios/releases/download/v0.8.3/icon.png"
+  "iconURL": "https://github.com/tera-works/tera-synth-ios/releases/download/v0.8.4/icon.png"
 }

@@ -14,8 +14,17 @@
           "NSMicrophoneUsageDescription": "The microphone feeds the vocoder and the looper."
         }
       },
-      "iconURL": "https://github.com/tera-works/tera-synth-ios/releases/download/v0.8.1/icon.png",
+      "iconURL": "https://github.com/tera-works/tera-synth-ios/releases/download/v0.8.3/icon.png",
       "versions": [
+        {
+          "version": "0.8.3",
+          "buildVersion": "9",
+          "minOSVersion": "16.0",
+          "size": 4612520,
+          "downloadURL": "https://github.com/tera-works/tera-synth-ios/releases/download/v0.8.3/app.ipa",
+          "date": "2026-11-09T05:09:25Z",
+          "localizedDescription": "Bluetooth MIDI screen (Core Bluetooth, remembers devices), MIDI 1.0 input by default with a MIDI 2.0 switch, MIDI input status"
+        },
         {
           "version": "0.8.1",
           "buildVersion": "8",
@@ -85,5 +94,5 @@
   "news": [],
   "identifier": "io.github.tera-works.tera-synth-ios",
   "sourceURL": "https://tera-works.github.io/tera-synth-ios/source.json",
-  "iconURL": "https://github.com/tera-works/tera-synth-ios/releases/download/v0.8.1/icon.png"
+  "iconURL": "https://github.com/tera-works/tera-synth-ios/releases/download/v0.8.3/icon.png"
 }

@@ -136,8 +136,9 @@ bool parseSmf(const uint8_t* data, size_t size, Song& out, std::string& error) {
     bool tempoSeen = false;
     uint64_t lastTick = 0;
     double sec = 0.0;
-    int bank[16];
+    int bank[16], bankLsb[16];
     for (auto& b : bank) b = -1;
+    for (auto& b : bankLsb) b = -1;
     for (const RawEvent& r : raw) {
         sec += smpte ? (double)(r.tick - lastTick) * smpteTickSec
                      : (double)(r.tick - lastTick) * usPerQuarter / 1e6 / (double)ppq;
@@ -152,18 +153,20 @@ bool parseSmf(const uint8_t* data, size_t size, Song& out, std::string& error) {
         const int ch = r.status & 15;
         const int type = r.status & 0xF0;
         if (type == 0xC0) {
+            const int key = patchKey(bank[ch], bankLsb[ch], r.d1);
             if (out.initialProgram[ch] < 0) {
-                out.initialProgram[ch] = r.d1;
+                out.initialProgram[ch] = key;
                 out.bankMsb[ch] = bank[ch];
             }
-            out.programChanges.push_back({sec, ch, r.d1});
+            out.programChanges.push_back({sec, ch, key});
             // in the stream too: the engine switches to a staged program at this point
-            Event pc = Event::control(EventType::ProgramChange, 0.0f, r.d1);
+            Event pc = Event::control(EventType::ProgramChange, (float)key, r.d1);
             pc.channel = (uint8_t)ch;
             out.events.push_back({sec, pc});
             continue;
         }
         if (type == 0xB0 && r.d1 == 0) bank[ch] = r.d2;
+        if (type == 0xB0 && r.d1 == 32) bankLsb[ch] = r.d2;
         if (type == 0x90 && r.d2 > 0) {
             out.channelUsed[ch] = true;
             ++out.noteCount;

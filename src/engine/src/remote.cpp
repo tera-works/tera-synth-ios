@@ -735,7 +735,7 @@ Json RemoteControl::statusJson() {
         for (int l = 0; l < kNumLayers; ++l) s.set(layerKey(l), engine_.partSampleSetName(p, l));
         o.set("samples", s);
         o.set("voices", engine_.partActiveVoices(p));
-        o.set("program", engine_.partProgram(p));
+        o.set("program", patchProgram(engine_.partProgram(p)));  // without the song's bank select
         parts.push(o);
     }
     r.set("parts", parts);

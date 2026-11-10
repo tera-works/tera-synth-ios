@@ -1034,6 +1034,12 @@ void Engine::songSeek(double seconds) {
 
 // ------------------------------------------------------------ song program changes
 
+namespace {
+// patch key of a song's program change (smf.h): the value carries the bank, if any
+int songPatch(const Event& e) { return e.value >= 128.0f ? (int)e.value : e.controller & 127; }
+}  // namespace
+
+
 void Engine::stagePartProgram(int part, std::unique_ptr<StagedProgram> staged) {
     if (!validPart(part) || !staged) return;
     {
@@ -1198,7 +1204,7 @@ void Engine::songChase() {
     for (int c = 0; c < 16; ++c) prog[c] = song_->initialProgram[c] < 0 ? 0 : song_->initialProgram[c];
     for (size_t i = 0; i < songIdx_; ++i) {
         const Event& ev = song_->events[i].event;
-        if (ev.type == EventType::ProgramChange) prog[ev.channel & 15] = ev.controller & 127;
+        if (ev.type == EventType::ProgramChange) prog[ev.channel & 15] = songPatch(ev);
     }
     for (int c = 0; c < 16 && c < kNumParts; ++c)
         if (song_->channelUsed[c]) songProgramChange(c, prog[c]);
@@ -1296,7 +1302,7 @@ void Engine::runSong(int frameOffset, int frames) {
     int budget = 256;  // per control block (dense passages: the rest follows in the next one)
     while (songIdx_ < ev.size() && ev[songIdx_].time < end && budget-- > 0) {
         const Event& e = ev[songIdx_++].event;
-        if (e.type == EventType::ProgramChange) songProgramChange(e.channel & 15, e.controller & 127);
+        if (e.type == EventType::ProgramChange) songProgramChange(e.channel & 15, songPatch(e));
         else handleEvent(e);
     }
 }

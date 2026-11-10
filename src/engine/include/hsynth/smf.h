@@ -16,6 +16,19 @@
 
 namespace hsynth {
 
+// Program numbers with a bank. A program change after bank select (CC0 MSB /
+// CC32 LSB) is kept as a "patch": 0..127 = the plain program (no bank select
+// on that channel), >= 128 = program + 128 * (1 + MSB * 128 + LSB). The song
+// stream carries it in the ProgramChange event's value (controller = program).
+inline int patchKey(int msb, int lsb, int program) {
+    if (msb < 0 && lsb < 0) return program & 127;
+    return (program & 127) + 128 * (1 + (msb < 0 ? 0 : msb & 127) * 128 + (lsb < 0 ? 0 : lsb & 127));
+}
+inline int patchProgram(int key) { return key < 0 ? key : key & 127; }
+inline bool patchHasBank(int key) { return key >= 128; }
+inline int patchMsb(int key) { return key >= 128 ? ((key >> 7) - 1) >> 7 : -1; }
+inline int patchLsb(int key) { return key >= 128 ? ((key >> 7) - 1) & 127 : -1; }
+
 struct SongEvent {
     double time = 0.0;  // seconds from the start
     Event event;
@@ -27,7 +40,7 @@ struct Song {
     double length = 0.0;                 // seconds (last event)
     float initialTempo = 120.0f;         // bpm at the first tempo event (or 120)
     std::vector<SongEvent> events;       // sorted by time
-    int initialProgram[16];              // first program change per channel, -1 = none
+    int initialProgram[16];              // first program change per channel (a patch key), -1 = none
     int bankMsb[16];                     // CC0 before the first program change (GM2 / GS banks), -1 = none
     bool channelUsed[16] = {};           // channel has notes
     int noteCount = 0;
@@ -41,7 +54,7 @@ struct Song {
         }
         return bpm;
     }
-    struct ProgramChange { double time; int channel; int program; };
+    struct ProgramChange { double time; int channel; int program; };  // program = patch key
     std::vector<ProgramChange> programChanges;  // all of them (the host may follow changes)
     Song() {
         for (auto& p : initialProgram) p = -1;

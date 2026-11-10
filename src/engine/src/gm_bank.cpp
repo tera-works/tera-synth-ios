@@ -61,9 +61,37 @@ const Alias kFactory[] = {{"tonewheel organ", 16}, {"drawbar organ", 16}, {"rota
                           {"shimmer pad", 94},     {"granular", 94},      {"morph pad", 95},    {"trance gate", 99},
                           {"pressure", 81}};
 
+// SonicCell capture names carry their bank: "SC GM2 Capital 001 ...", "SC GM2 Var #2 001 ...",
+// "SC PRESET D 018 ...", "SC PRESET Rhythm 008 ...", "SC GM2 Rhythm Sets 017 ..." (lower case here).
+bool soniccellBank(const std::string& n, int& msb, int& lsb, int& program) {
+    auto num = [&](size_t at) {
+        const int v = std::atoi(n.c_str() + at);
+        program = v - 1;
+        return v >= 1 && v <= 128;
+    };
+    auto starts = [&](const char* p) { return n.rfind(p, 0) == 0; };
+    if (starts("sc gm2 capital ")) { msb = 121; lsb = 0; return num(15); }
+    if (starts("sc gm2 rhythm sets ")) { msb = 120; lsb = 0; return num(19); }
+    if (starts("sc gm2 var #")) {
+        const int k = std::atoi(n.c_str() + 12);
+        const size_t sp = n.find(' ', 12);
+        if (k < 1 || k > 127 || sp == std::string::npos) return false;
+        msb = 121;
+        lsb = k;
+        return num(sp + 1);
+    }
+    if (starts("sc preset rhythm ")) { msb = 86; lsb = 64; return num(17); }
+    if (starts("sc preset ") && n.size() > 12 && n[10] >= 'a' && n[10] <= 'g' && n[11] == ' ') {
+        msb = 87;
+        lsb = 64 + (n[10] - 'a');
+        return num(12);
+    }
+    return false;
+}
+
 }  // namespace
 
-const char* gmProgramName(int program) { return kGmNames[std::max(0, std::min(127, program))]; }
+const char* gmProgramName(int program) { return kGmNames[std::max(0, std::min(127, patchProgram(program)))]; }
 
 void GmBank::build(const std::vector<PresetInfo>& presets) {
     entries_.clear();
@@ -72,6 +100,12 @@ void GmBank::build(const std::vector<PresetInfo>& presets) {
         Entry e;
         e.file = p.file;
         e.name = p.name;
+        int msb = -1, lsb = -1, bankProg = -1;
+        if (soniccellBank(n, msb, lsb, bankProg)) {
+            e.msb = msb;
+            e.lsb = lsb;
+            e.bankProgram = bankProg;
+        }
         // kits: "SC GM2 Rhythm Sets NNN ...", "SC PRESET Rhythm NNN ...", "... Drum Kit", "... Kit";
         // not every name with "rhythm" in it ("Rhythm'n'B" is a melodic preset)
         const bool kit = n.find("rhythm sets") != std::string::npos || n.find("preset rhythm ") != std::string::npos ||
@@ -99,6 +133,14 @@ void GmBank::build(const std::vector<PresetInfo>& presets) {
             entries_.push_back(e);
             continue;
         }
+        if (e.msb == 87 || (e.msb == 121 && e.lsb > 0)) {
+            // PRESET A-G and GM2 variations: by bank select only (their numbers are not GM programs)
+            Entry b = e;
+            b.bankOnly = true;
+            b.quality = 3;
+            entries_.push_back(b);
+            e.msb = e.lsb = e.bankProgram = -1;  // a factory alias below stays a plain GM stand-in
+        }
         if (cat.find("gm test") != std::string::npos) {
             for (const Alias& a : kGmTest)
                 if (n == a.name) {
@@ -120,6 +162,16 @@ void GmBank::build(const std::vector<PresetInfo>& presets) {
 
 const GmBank::Entry* GmBank::pick(int program, bool drum) const {
     const Entry* best = nullptr;
+    if (patchHasBank(program)) {
+        // bank select: the capture of exactly that bank and program, else the plain program
+        const int msb = patchMsb(program), lsb = patchLsb(program), prog = patchProgram(program);
+        for (const Entry& e : entries_)
+            if (e.drum == drum && e.msb == msb && e.lsb == lsb && e.bankProgram == prog &&
+                (!best || e.quality > best->quality))
+                best = &e;
+        if (best) return best;
+        program = prog;
+    }
     if (drum) {
         // the kit numbered like the program, else the nearest one below it (GS / GM2 kits are
         // variations of the kit at the start of their group: 1..7 -> Standard), else the best kit
@@ -136,7 +188,7 @@ const GmBank::Entry* GmBank::pick(int program, bool drum) const {
     program = std::max(0, std::min(127, program));
     // 1. the program itself
     for (const Entry& e : entries_)
-        if (!e.drum && e.program == program && (!best || e.quality > best->quality)) best = &e;
+        if (!e.drum && !e.bankOnly && e.program == program && (!best || e.quality > best->quality)) best = &e;
     if (best) return best;
     // 2. the same GM family (8 programs), nearest first; 3. related families
     static const int kFallback[16][3] = {
@@ -149,7 +201,7 @@ const GmBank::Entry* GmBank::pick(int program, bool drum) const {
     for (int f : families) {
         int bestDist = 1000;
         for (const Entry& e : entries_) {
-            if (e.drum || e.program / 8 != f) continue;
+            if (e.drum || e.bankOnly || e.program < 0 || e.program / 8 != f) continue;
             const int dist = std::abs(e.program - program) * 4 - e.quality;
             if (dist < bestDist) {
                 bestDist = dist;
@@ -159,7 +211,7 @@ const GmBank::Entry* GmBank::pick(int program, bool drum) const {
         if (best) return best;
     }
     for (const Entry& e : entries_)
-        if (!e.drum && (!best || e.quality > best->quality)) best = &e;
+        if (!e.drum && !e.bankOnly && (!best || e.quality > best->quality)) best = &e;
     return best;
 }
 
@@ -179,12 +231,18 @@ bool prepareSong(Engine& engine, const Song& song, const GmBank& bank, const std
         float mix[Mix::Count];
         defaultPartMix(ch, mix);
         for (int i = 0; i < Mix::Count; ++i) engine.setPartMix(ch, i, mix[i]);
-        const std::string want = drum ? "drums" : gmProgramName(program);
+        // GM names only where the bank keeps GM numbering (none, GM / GS 0, GM2 120 / 121)
+        const int msb = patchMsb(program);
+        const bool gmNumbers = !patchHasBank(program) || msb == 0 || msb >= 120;
+        const std::string bankText = "Bank " + std::to_string(msb) + "/" + std::to_string(patchLsb(program)) + " #" +
+                                     std::to_string(patchProgram(program) + 1);
         SongPart sp;
         sp.channel = ch;
         sp.drum = drum;
-        sp.program = program;
-        sp.gmName = drum ? "Drum Kit" : gmProgramName(program);
+        sp.program = patchProgram(program);
+        sp.gmName = drum ? "Drum Kit" : gmNumbers ? gmProgramName(program) : bankText;
+        const std::string want = (drum ? std::string("drums") : sp.gmName) +
+                                 (patchHasBank(program) && (drum || gmNumbers) ? " (" + bankText + ")" : std::string());
         if (!e) {
             report.push_back("ch " + std::to_string(ch + 1) + ": no preset for " + want);
             if (parts) parts->push_back(sp);

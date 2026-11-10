@@ -6,6 +6,10 @@
 // (program NNN-1), the "GM Test" sampled instruments, drum kits, and a few
 // factory presets by keyword. Missing programs fall back to the nearest one
 // in the same GM family, then to a related family.
+//
+// Bank select reaches every SonicCell capture by its own numbers, as on the
+// SonicCell itself: GM2 Capital = MSB 121 LSB 0, GM2 Var #k = 121 / k,
+// PRESET A..G = 87 / 64..70, PRESET Rhythm = 86 / 64, GM2 Rhythm Sets = 120 / 0.
 #pragma once
 
 #include <atomic>
@@ -28,10 +32,14 @@ public:
         int program = -1;      // 0..127, -1 for drum kits
         bool drum = false;
         int quality = 0;       // higher wins among equals
+        int msb = -1, lsb = -1;  // SonicCell bank of the capture (bank select), -1 = none
+        int bankProgram = -1;  // its program number in that bank (0..127)
+        bool bankOnly = false; // reached only by bank select (SonicCell PRESET A-G, GM2 variations)
         std::string file, name;
     };
     void build(const std::vector<PresetInfo>& presets);
-    // Preset file for a program (or the drum kit); "" if the bank is empty.
+    // Preset file for a program or patch key (smf.h; with a bank: the capture of exactly that
+    // bank / program, else as the plain program) or the drum kit; nullptr if the bank is empty.
     const Entry* pick(int program, bool drum) const;
     const std::vector<Entry>& entries() const { return entries_; }
 

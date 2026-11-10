@@ -14,8 +14,17 @@
           "NSMicrophoneUsageDescription": "The microphone feeds the vocoder and the looper."
         }
       },
-      "iconURL": "https://github.com/tera-works/tera-synth-ios/releases/download/v0.8.4/icon.png",
+      "iconURL": "https://github.com/tera-works/tera-synth-ios/releases/download/v0.8.5/icon.png",
       "versions": [
+        {
+          "version": "0.8.5",
+          "buildVersion": "11",
+          "minOSVersion": "16.0",
+          "size": 4579562,
+          "downloadURL": "https://github.com/tera-works/tera-synth-ios/releases/download/v0.8.5/app.ipa",
+          "date": "2026-11-10T10:15:34Z",
+          "localizedDescription": "MIDI ファイルのバンクセレクト（CC0 / CC32）に対応。曲の中で録音した音色をバンクと番号で選べるようになりました。"
+        },
         {
           "version": "0.8.4",
           "buildVersion": "10",
@@ -103,5 +112,5 @@
   "news": [],
   "identifier": "io.github.tera-works.tera-synth-ios",
   "sourceURL": "https://tera-works.github.io/tera-synth-ios/source.json",
-  "iconURL": "https://github.com/tera-works/tera-synth-ios/releases/download/v0.8.4/icon.png"
+  "iconURL": "https://github.com/tera-works/tera-synth-ios/releases/download/v0.8.5/icon.png"
 }

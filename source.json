@@ -14,8 +14,17 @@
           "NSMicrophoneUsageDescription": "The microphone feeds the vocoder and the looper."
         }
       },
-      "iconURL": "https://github.com/tera-works/tera-synth-ios/releases/download/v0.8.5/icon.png",
+      "iconURL": "https://github.com/tera-works/tera-synth-ios/releases/download/v0.8.7/icon.png",
       "versions": [
+        {
+          "version": "0.8.7",
+          "buildVersion": "13",
+          "minOSVersion": "16.0",
+          "size": 4589465,
+          "downloadURL": "https://github.com/tera-works/tera-synth-ios/releases/download/v0.8.7/app.ipa",
+          "date": "2026-11-19T01:30:21Z",
+          "localizedDescription": "バックグラウンド・画面オフでも MIDI で演奏できるように（System 画面の Background）。画面を消さない Screen On。イヤホンや Bluetooth の抜き差しで音が止まらないように。セットアップファイルの共通設定と setups フォルダーからの読み込み。"
+        },
         {
           "version": "0.8.5",
           "buildVersion": "11",
@@ -112,5 +121,5 @@
   "news": [],
   "identifier": "io.github.tera-works.tera-synth-ios",
   "sourceURL": "https://tera-works.github.io/tera-synth-ios/source.json",
-  "iconURL": "https://github.com/tera-works/tera-synth-ios/releases/download/v0.8.5/icon.png"
+  "iconURL": "https://github.com/tera-works/tera-synth-ios/releases/download/v0.8.7/icon.png"
 }

@@ -33,6 +33,24 @@ final class SynthModel: ObservableObject {
     private var audioOn = false
     private var background = false
     private var idleSince: Date?
+    // audio watchdog: the output is restarted when it stops on its own (route change, reset)
+    private var interrupted = false
+    private var lastCallbacks = -1
+    private var stalledTicks = 0
+    private var lastRestart = Date.distantPast
+    private var restartPending = false
+
+    /// Keep the screen on while the app is open (the idle timer is off).
+    @Published var keepScreenOn = UserDefaults.standard.bool(forKey: "keepScreenOn") {
+        didSet {
+            UserDefaults.standard.set(keepScreenOn, forKey: "keepScreenOn")
+            UIApplication.shared.isIdleTimerDisabled = keepScreenOn
+        }
+    }
+    /// Keep the audio (and MIDI input) running in the background and with the screen off.
+    @Published var backgroundPlay = UserDefaults.standard.object(forKey: "backgroundPlay") as? Bool ?? true {
+        didSet { UserDefaults.standard.set(backgroundPlay, forKey: "backgroundPlay") }
+    }
 
     // SysEx remote control: a request changed the sound -> the views re-read the engine
     private var remoteSeen = 0
@@ -60,6 +78,7 @@ final class SynthModel: ObservableObject {
             self.voices = Int(self.engine.activeVoices)
             self.cpu = self.engine.cpuLoad
             self.checkBackgroundIdle()
+            self.watchAudio()
             self.pollLearn()
             self.pollRemote()
             self.midiPollTick += 1
@@ -74,12 +93,30 @@ final class SynthModel: ObservableObject {
             guard let self, let raw = n.userInfo?[AVAudioSessionInterruptionTypeKey] as? UInt,
                   let type = AVAudioSession.InterruptionType(rawValue: raw) else { return }
             if type == .began {
+                self.interrupted = true
                 self.engine.songPlay(false)
-            } else if !self.background || self.audioOn {
-                self.engine.stopAudio()
-                self.audioOn = self.engine.startAudio()
+            } else {
+                self.interrupted = false
+                if !self.background || self.audioOn { self.restartAudio() }
             }
         }
+        // earphones / Bluetooth / USB audio plugged in or out: open the output again on the new route
+        NotificationCenter.default.addObserver(forName: AVAudioSession.routeChangeNotification, object: nil, queue: .main) { [weak self] n in
+            guard let self, let raw = n.userInfo?[AVAudioSessionRouteChangeReasonKey] as? UInt,
+                  let reason = AVAudioSession.RouteChangeReason(rawValue: raw) else { return }
+            switch reason {
+            case .newDeviceAvailable, .oldDeviceUnavailable, .override, .wakeFromSleep,
+                 .noSuitableRouteForCategory, .routeConfigurationChange:
+                // our own restart also changes the route configuration: ignore the echo
+                if Date().timeIntervalSince(self.lastRestart) > 1.0 { self.scheduleRestart() }
+            default:
+                break
+            }
+        }
+        NotificationCenter.default.addObserver(forName: AVAudioSession.mediaServicesWereResetNotification, object: nil, queue: .main) { [weak self] _ in
+            self?.scheduleRestart()
+        }
+        UIApplication.shared.isIdleTimerDisabled = keepScreenOn
         let last = UserDefaults.standard.integer(forKey: "lastPreset")
         load(preset: engine.presetNames.indices.contains(last) ? last : 0)
     }
@@ -99,23 +136,61 @@ final class SynthModel: ObservableObject {
         audioOn = false
     }
 
-    /// Scene phase: a playing song keeps going in the background (UIBackgroundModes audio);
-    /// otherwise the audio stops as before.
+    /// Stops and opens the audio output again (new route, media services reset).
+    func restartAudio() {
+        guard audioOn || !background else { return }
+        lastRestart = Date()
+        engine.stopAudio()
+        audioOn = engine.startAudio()
+        lastCallbacks = -1
+        stalledTicks = 0
+    }
+
+    /// A route change comes in several notifications: restart once they settle.
+    private func scheduleRestart() {
+        guard !restartPending else { return }
+        restartPending = true
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
+            guard let self else { return }
+            self.restartPending = false
+            if self.audioOn && !self.interrupted { self.restartAudio() }
+        }
+    }
+
+    /// Every 0.25 s: the output should be calling back. Stuck for 1 s -> restart it
+    /// (at most every 3 s, not during a phone call or another app's audio).
+    private func watchAudio() {
+        guard audioOn, !interrupted else { lastCallbacks = -1; stalledTicks = 0; return }
+        let c = engine.audioCallbacks
+        if c == lastCallbacks {
+            stalledTicks += 1
+            if stalledTicks >= 4 && Date().timeIntervalSince(lastRestart) > 3 { restartAudio() }
+        } else {
+            stalledTicks = 0
+        }
+        lastCallbacks = c
+    }
+
+    /// Scene phase: with Background on, the audio and the MIDI inputs keep running in the
+    /// background and with the screen off (UIBackgroundModes audio). Off: only a playing song
+    /// keeps going, as before.
     func enterBackground() {
         background = true
         player.background = true
         idleSince = nil
-        if !engine.songPlaying { stop() }
+        if !backgroundPlay && !engine.songPlaying { stop() }
     }
     func enterForeground() {
         background = false
         player.background = false
-        start()
+        UIApplication.shared.isIdleTimerDisabled = keepScreenOn
+        if audioOn && !engine.audioRunning { restartAudio() } else { start() }
     }
 
-    /// Paused in the background for 10 minutes: stop the audio (iOS then suspends the app).
+    /// Background off: a song paused in the background for 10 minutes stops the audio
+    /// (iOS then suspends the app). Background on: the audio keeps running for MIDI input.
     private func checkBackgroundIdle() {
-        guard background, audioOn else { return }
+        guard background, audioOn, !backgroundPlay else { return }
         if engine.songPlaying { idleSince = nil; return }
         if idleSince == nil { idleSince = Date() }
         else if Date().timeIntervalSince(idleSince!) > 600 { stop() }

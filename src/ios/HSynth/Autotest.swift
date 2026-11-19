@@ -90,7 +90,7 @@ extension SynthModel {
             try? lines.joined(separator: "\n").appending("\n")
                 .write(to: dir.appendingPathComponent("report.txt"), atomically: true, encoding: .utf8)
             engine.muted = false
-            UIApplication.shared.isIdleTimerDisabled = false
+            UIApplication.shared.isIdleTimerDisabled = keepScreenOn
         }
     }
 }

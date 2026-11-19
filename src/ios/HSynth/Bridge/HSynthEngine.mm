@@ -775,6 +775,8 @@ float toNormalized(const ParamInfo& p, float v) {
     if (!ok) NSLog(@"HSynth MIDI out: %s", err.c_str());
     return ok;
 }
+- (NSInteger)audioCallbacks { return (NSInteger)_audio->stats().callbacks; }
+- (BOOL)audioRunning { return _audio->running(); }
 - (void)resetPeaks {
     _engine->resetPeakStats();
     _audio->resetPeaks();

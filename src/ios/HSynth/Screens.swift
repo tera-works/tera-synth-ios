@@ -397,6 +397,12 @@ struct SystemScreen: View {
                     }
                     Text("Audio Input をオンにすると、マイクの音をボコーダーやルーパーに使えます（最初に許可を求めます）。")
                         .font(.system(size: 11)).foregroundColor(Hw.engrave)
+                    HStack {
+                        HwButton(title: "Screen On", lit: model.keepScreenOn) { model.keepScreenOn.toggle() }
+                        HwButton(title: "Background", lit: model.backgroundPlay) { model.backgroundPlay.toggle() }
+                    }
+                    Text("Screen On: オンにすると、HSynth を開いている間は画面が自動で消えません。Background: オンにすると、ほかのアプリに切り替えても、画面を消しても、MIDI キーボードで演奏でき、曲も鳴り続けます（電池を多めに使います）。オフにすると、バックグラウンドでは再生中の曲だけが鳴ります。イヤホンや Bluetooth の出力を抜き差ししたときは、自動で出力を開き直します。")
+                        .font(.system(size: 11)).foregroundColor(Hw.engrave)
                 }
                 Panel(title: "Recording") {
                     HStack {
@@ -868,6 +874,20 @@ struct SetupPanel: View {
     @State private var importing = false
     @State private var document = SetupDocument(text: "")
     @State private var message = ""
+    @State private var saved: [URL] = []
+
+    /// Documents/setups: files copied in with the Files app or the PC (one tap to load)
+    private static var setupsDir: URL {
+        let d = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0].appendingPathComponent("setups")
+        try? FileManager.default.createDirectory(at: d, withIntermediateDirectories: true)
+        return d
+    }
+
+    private func rescan() {
+        let items = (try? FileManager.default.contentsOfDirectory(at: Self.setupsDir, includingPropertiesForKeys: nil)) ?? []
+        saved = items.filter { $0.pathExtension.lowercased() == "json" }
+            .sorted { $0.lastPathComponent.localizedCaseInsensitiveCompare($1.lastPathComponent) == .orderedAscending }
+    }
 
     var body: some View {
         Panel(title: "Setup") {
@@ -877,11 +897,31 @@ struct SetupPanel: View {
                     exporting = true
                 }
                 HwButton(title: "Import…") { importing = true }
+                HwButton(title: "Save to setups") {
+                    let f = DateFormatter()
+                    f.dateFormat = "yyyyMMdd-HHmmss"
+                    let url = Self.setupsDir.appendingPathComponent("Setup \(f.string(from: Date())).json")
+                    do {
+                        try model.setupText(name: url.deletingPathExtension().lastPathComponent).write(to: url, atomically: true, encoding: .utf8)
+                        message = "setups に保存しました"
+                    } catch { message = "保存できませんでした" }
+                    rescan()
+                }
+            }
+            if !saved.isEmpty {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack {
+                        ForEach(saved, id: \.self) { u in
+                            HwButton(title: "Load " + u.deletingPathExtension().lastPathComponent) { message = model.importSetup(u) }
+                        }
+                    }
+                }
             }
             if !message.isEmpty { Lcd(text: message, size: 12) }
-            Text("パート（MIDI チャンネル・プリセット・ミックス）、エフェクト、MIDI Learn、同時発音数を 1 つのファイルに書き出し・読み込みします。PC 版・Android 版と共通の形式です。")
+            Text("パート（MIDI チャンネル・プリセット・ミックス）、エフェクト、MIDI Learn、設定（同時発音数・品質・Screen On・Background・MIDI 2.0）を 1 つのファイルに書き出し・読み込みします。Windows・Mac・Android 版と共通の形式で、ほかのアプリで書き出したファイルもそのまま読み込めます。「ファイル」アプリの HSynth > setups に置いたファイルは、上の「Load」ボタンで 1 回で読み込めます。")
                 .font(.system(size: 11)).foregroundColor(Hw.engrave)
         }
+        .onAppear { rescan() }
         .fileExporter(isPresented: $exporting, document: document, contentType: .json, defaultFilename: "setup") { result in
             if case .success = result { message = "書き出しました" }
         }
@@ -895,8 +935,12 @@ struct SetupPanel: View {
 extension SynthModel {
     func setupText(name: String) -> String {
         let d = UserDefaults.standard
+        // the common host settings (docs/CONTROLLERS.md 2): every app writes what it has, reads what it knows
         let host: [String: Any] = ["voices": d.object(forKey: "maxVoices") as? Int ?? 128,
-                                   "quality": d.object(forKey: "quality") as? Int ?? 1]
+                                   "quality": d.object(forKey: "quality") as? Int ?? 1,
+                                   "screenOn": keepScreenOn,
+                                   "background": backgroundPlay,
+                                   "umpInput": engine.umpInput]
         let hostText = (try? JSONSerialization.data(withJSONObject: host)).map { String(decoding: $0, as: UTF8.self) } ?? "{}"
         return engine.setupJson(name, partNames: partNames, host: hostText)
     }
@@ -931,6 +975,9 @@ extension SynthModel {
                 d.set(max(0, min(2, q)), forKey: "quality")
                 engine.setQuality(Int32(max(0, min(2, q))))
             }
+            if let v = host["screenOn"] as? Bool { keepScreenOn = v }
+            if let v = host["background"] as? Bool { backgroundPlay = v }
+            if let v = host["umpInput"] as? Bool { engine.umpInput = v }
         }
         let name = r["name"] as? String ?? ""
         show("Setup \(name)")

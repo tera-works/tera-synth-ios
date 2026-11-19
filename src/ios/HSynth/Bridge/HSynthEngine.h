@@ -104,6 +104,9 @@ NS_ASSUME_NONNULL_BEGIN
 @property(nonatomic, readonly) int lateCallbacks;       // callback came > 2.5 periods late (likely audible)
 @property(nonatomic, readonly) int callbackFrames;
 - (void)resetPeaks;
+/// Audio callbacks so far (grows while the output runs; the watchdog compares it).
+@property(nonatomic, readonly) NSInteger audioCallbacks;
+@property(nonatomic, readonly) BOOL audioRunning;
 /// Warnings of the last loadPreset (missing samples, ...) or the report of the last loadSong.
 @property(nonatomic, readonly) NSArray<NSString*>* lastWarnings;
 
